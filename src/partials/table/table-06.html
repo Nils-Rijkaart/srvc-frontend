@@ -1,3 +1,4 @@
+<!-- html -->
 <div
         class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6"
 >
@@ -57,7 +58,7 @@
               <p
                 class="font-medium text-gray-500 text-theme-xs dark:text-gray-400"
               >
-                Stoploss Delta
+                Closed by stoploss
               </p>
             </div>
           </th>
@@ -65,8 +66,90 @@
       </thead>
       <!-- table header end -->
       <!-- table body start -->
-      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+      <tbody id="live-positions-body" class="divide-y divide-gray-100 dark:divide-gray-800">
       </tbody>
     </table>
   </div>
 </div>
+
+<script>
+// javascript
+// File: public/js/orders.js
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.querySelector('#live-positions-body');
+  if (!tbody) {
+    console.error('tbody#live-positions-body not found. Add id="live-positions-body" to the table tbody.');
+    return;
+  }
+
+  // compute end of today (local) as ISO string
+  const endOfTodayIso = (() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d.toISOString();
+  })();
+
+  function fmtNum(n) {
+    if (n == null || Number.isNaN(Number(n))) return '-';
+    return Number(n).toFixed(2);
+  }
+
+  fetch('/data/orders.json')
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      // expect an array of positions
+      const items = Array.isArray(data) ? data : (data.positions || []);
+      tbody.innerHTML = ''; // clear existing rows
+
+      items.forEach(pos => {
+        const fillDt = pos.timestamp ? new Date(pos.timestamp).toLocaleString() : '-';
+        const fillPrice = pos.open_price;
+        const firstOrder = (Array.isArray(pos.orders) && pos.orders[0]) || {};
+        const stopLoss = firstOrder.stop_loss ?? pos.stop_loss ?? null;
+
+        // determine closed status: either flagged as filled or has a close_price
+        const closed = Boolean(pos.filled === true || pos.close_price != null);
+
+        const tr = document.createElement('tr');
+
+        // Fill datetime
+        const tdFillDt = document.createElement('td');
+        tdFillDt.className = 'px-5 py-3 sm:px-6';
+        tdFillDt.textContent = fillDt;
+        tr.appendChild(tdFillDt);
+
+        // Expiry datetime (end of current date)
+        const tdExpiry = document.createElement('td');
+        tdExpiry.className = 'px-5 py-3 sm:px-6';
+        tdExpiry.textContent = endOfTodayIso;
+        tr.appendChild(tdExpiry);
+
+        // Fill price
+        const tdFillPrice = document.createElement('td');
+        tdFillPrice.className = 'px-5 py-3 sm:px-6';
+        tdFillPrice.textContent = fmtNum(fillPrice);
+        tr.appendChild(tdFillPrice);
+
+        // Stoploss
+        const tdStop = document.createElement('td');
+        tdStop.className = 'px-5 py-3 sm:px-6';
+        tdStop.textContent = fmtNum(stopLoss);
+        tr.appendChild(tdStop);
+
+        // Closed
+        const tdClosed = document.createElement('td');
+        tdClosed.className = 'px-5 py-3 sm:px-6';
+        tdClosed.textContent = closed ? 'Yes' : 'No';
+        tr.appendChild(tdClosed);
+
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      console.error('Failed to load /data/orders.json', err);
+    });
+});
+</script>

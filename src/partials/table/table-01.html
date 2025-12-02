@@ -1,3 +1,4 @@
+
 <div
         class="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6"
 >
@@ -86,7 +87,7 @@
             </thead>
             <!-- table header end -->
 
-            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody id='orders-tbody' class="divide-y divide-gray-100 dark:divide-gray-800">
             <tr>
                 <td class="py-3">
                     <div class="flex items-center">
@@ -158,3 +159,93 @@
         </table>
     </div>
 </div>
+
+<script>
+    // javascript
+// Add this script to your page (e.g. at end of the body) and add a file input with id `json-file-input`:
+// <input id="json-file-input" type="file" accept="application/json">
+
+function formatTimestamp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatCurrency(n) {
+  if (n === null || n === undefined) return '';
+  return (n >= 0 ? '$' + n.toFixed(2) : '$' + n.toFixed(2)).replace(/^-/, '-$').replace('--', '-');
+}
+
+function renderOrders(data) {
+  const tbody = document.getElementById('orders-tbody');
+  if (!tbody) {
+    console.error('tbody with id orders-tbody not found');
+    return;
+  }
+  tbody.innerHTML = ''; // clear
+
+  data.forEach(item => {
+    const order = (item.orders && item.orders[0]) || {};
+    const strikes = (order.strikes || []).join(' / ');
+    const comboId = item.label || '';
+    const datetime = formatTimestamp(item.timestamp);
+    const strikeText = strikes || '';
+    const price = typeof item.open_price === 'number' ? formatCurrency(item.open_price) : '';
+    const statusHtml = item.filled
+      ? `<p class="rounded-full bg-success-50 px-2 py-0.5 text-theme-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500">Filled</p>`
+      : `<p class="rounded-full bg-error-50 px-2 py-0.5 text-theme-xs font-medium text-error-600 dark:bg-error-600/15 dark:text-error-500">Open</p>`;
+    const positionStatus = (order.stop_loss !== undefined) ? `Stop loss ${order.stop_loss}` : '';
+    const liveCashflow = (item.close_price !== null && item.close_price !== undefined)
+      ? formatCurrency(item.close_price - item.open_price)
+      : '$0';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="py-3"><div class="flex items-center"><div class="flex items-center gap-3"><p class="text-gray-500 text-theme-sm dark:text-gray-400">${comboId}</p></div></div></td>
+      <td class="py-3"><div class="flex items-center"><div class="flex items-center gap-3"><p class="text-gray-500 text-theme-sm dark:text-gray-400">${datetime}</p></div></div></td>
+      <td class="py-3"><div class="flex items-center"><p class="text-gray-500 text-theme-sm dark:text-gray-400">${strikeText}</p></div></td>
+      <td class="py-3"><div class="flex items-center"><p class="text-gray-500 text-theme-sm dark:text-gray-400">${price}</p></div></td>
+      <td class="py-3"><div class="flex items-center">${statusHtml}</div></td>
+      <td class="py-3"><div class="flex items-center"><p class="rounded-full bg-error-50 px-2 py-0.5 text-theme-xs font-medium text-error-600 dark:bg-error-600/15 dark:text-error-500">${positionStatus}</p></div></td>
+      <td class="py-3"><div class="flex items-center"><p class="bg-error-50 px-2 py-0.5 text-theme-xs font-medium text-error-600 dark:bg-error-600/15 dark:text-error-500">${liveCashflow}</p></div></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Load from a selected local file input (JSON)
+function setupFileInput(fileInputId = 'json-file-input') {
+  const input = document.getElementById(fileInputId);
+  if (!input) return;
+  input.addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        renderOrders(data);
+      } catch (err) {
+        console.error('Invalid JSON file', err);
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+// Load by fetching a URL (returns a promise)
+async function loadFromUrl(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  const data = await res.json();
+  renderOrders(data);
+}
+
+// Initialize (call after DOM ready)
+document.addEventListener('DOMContentLoaded', () => {
+  setupFileInput('json-file-input');
+  loadFromUrl('/data/orders.json').catch(console.error);
+});
+</script>
+

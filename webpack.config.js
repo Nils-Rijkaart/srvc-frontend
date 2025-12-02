@@ -3,6 +3,9 @@ const glob = require("glob");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+
+
 const INCLUDE_PATTERN =
   /<include\s+src=["'](.+?)["']\s*\/?>\s*(?:<\/include>)?/gis;
 
@@ -41,9 +44,10 @@ module.exports = {
   mode: "development",
   entry: "./src/js/index.js",
   devServer: {
-    static: {
-      directory: path.join(__dirname, "./build"),
-    },
+    static: [
+      {directory: path.join(__dirname, "./build")},
+        {directory: path.join(__dirname, "./public")}
+    ],
     compress: true,
     port: 3000,
     hot: true,
@@ -97,12 +101,17 @@ module.exports = {
     ],
   },
   plugins: [
-    ...generateHTMLPlugins(),
-    new MiniCssExtractPlugin({
-      filename: "style.css",
-      chunkFilename: "style.css",
-    }),
-  ],
+  ...generateHTMLPlugins(),
+  new CopyWebpackPlugin({
+    patterns: [
+      { from: path.resolve(__dirname, 'public'), to: path.resolve(__dirname, 'build') }
+    ],
+  }),
+  new MiniCssExtractPlugin({
+    filename: "style.css",
+    chunkFilename: "style.css",
+  }),
+],
   output: {
     filename: "bundle.js",
     path: path.resolve(__dirname, "build"),
